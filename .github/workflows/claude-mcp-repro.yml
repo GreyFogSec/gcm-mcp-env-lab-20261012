@@ -66,6 +66,7 @@ jobs:
         shell: bash
         env:
           EXPECTED_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_NUMBER: ${{ github.event.issue.number }}
         run: |
           node <<'NODE'
           const crypto = require('node:crypto');
@@ -90,7 +91,8 @@ jobs:
           const result = {
             source: proof.source,
             run_id: process.env.GITHUB_RUN_ID,
-            pull_request: process.env.GITHUB_REF,
+            pull_request_number: process.env.PR_NUMBER,
+            workflow_ref: process.env.GITHUB_REF,
             checks,
             passed: Object.values(checks).every(Boolean),
           };
