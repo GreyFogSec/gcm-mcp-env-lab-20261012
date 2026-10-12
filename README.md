@@ -40,6 +40,7 @@ keeping the validated setup repeatable.
 - External fork PR: [#1](https://github.com/GreyFogSec/gcm-mcp-env-lab-20261012/pull/1)
 - Authorized trigger: [issue comment 6121847600](https://github.com/GreyFogSec/gcm-mcp-env-lab-20261012/pull/1#issuecomment-6121847600)
 - Successful workflow: [run 38232587946](https://github.com/GreyFogSec/gcm-mcp-env-lab-20261012/actions/runs/38232587946)
+- Successful allowlist-hardened rerun: [run 38232882367](https://github.com/GreyFogSec/gcm-mcp-env-lab-20261012/actions/runs/38232882367)
 
 The exact pinned Claude action checked out fork commit
 `b565bf6170d54cc64947e6d1a83a245de53fd868`. Its deliberately invalid API
