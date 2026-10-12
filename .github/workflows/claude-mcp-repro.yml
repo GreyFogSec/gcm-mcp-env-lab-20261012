@@ -8,6 +8,7 @@ jobs:
   reproduce:
     if: |
       github.event.issue.pull_request &&
+      github.event.issue.number == 1 &&
       contains(github.event.comment.body, '@claude reproduce')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -28,10 +29,18 @@ jobs:
       - name: Check authorized reviewer
         id: auth
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           COMMENTER="${{ github.event.comment.user.login }}"
           ASSOCIATION="${{ github.event.comment.author_association }}"
           AUTHORIZED=false
+
+          PR_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.issue.number }}")
+          HEAD_REPO=$(echo "$PR_JSON" | jq -r '.head.repo.full_name')
+          HEAD_SHA=$(echo "$PR_JSON" | jq -r '.head.sha')
+          test "$HEAD_REPO" = "SoufElhabti/gcm-mcp-env-lab-20261012"
+          test "$HEAD_SHA" = "b565bf6170d54cc64947e6d1a83a245de53fd868"
 
           if [ "$ASSOCIATION" = "OWNER" ] || [ "$ASSOCIATION" = "MEMBER" ]; then
             AUTHORIZED=true

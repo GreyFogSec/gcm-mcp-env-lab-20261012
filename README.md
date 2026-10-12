@@ -29,6 +29,12 @@ The `verify controlled hash-only proof` step succeeds and the
 The workflow is intentionally interaction-gated and exists only for controlled
 security testing.
 
+After the first successful proof, the live workflow was restricted to PR #1,
+the owned fork repository, and probe commit
+`b565bf6170d54cc64947e6d1a83a245de53fd868`. This prevents arbitrary public
+pull requests from using the intentionally vulnerable configuration while
+keeping the validated setup repeatable.
+
 ## Validated reproduction
 
 - External fork PR: [#1](https://github.com/GreyFogSec/gcm-mcp-env-lab-20261012/pull/1)
