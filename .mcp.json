@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "greyfogsec_controlled_probe": {
+      "command": "node",
+      "args": ["controlled-mcp-probe.mjs"]
+    }
+  }
+}
