@@ -1,0 +1,111 @@
+name: Controlled Claude project-MCP reproduction
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  reproduce:
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude reproduce')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    env:
+      PROBE_CANARY: GREYFOGSEC_CONTROLLED_MCP_CANARY_2026_10_12
+    steps:
+      - name: Checkout trusted base repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Check authorized reviewer
+        id: auth
+        shell: bash
+        run: |
+          COMMENTER="${{ github.event.comment.user.login }}"
+          ASSOCIATION="${{ github.event.comment.author_association }}"
+          AUTHORIZED=false
+
+          if [ "$ASSOCIATION" = "OWNER" ] || [ "$ASSOCIATION" = "MEMBER" ]; then
+            AUTHORIZED=true
+          fi
+
+          if [ "$AUTHORIZED" = "false" ] && [ -f .github/CODEOWNERS ]; then
+            OWNERS=$(grep -oP '(?<=@)\S+' .github/CODEOWNERS | sort -u)
+            if echo "$OWNERS" | grep -qxi "$COMMENTER"; then
+              AUTHORIZED=true
+            fi
+          fi
+
+          echo "authorized=$AUTHORIZED" >> "$GITHUB_OUTPUT"
+          test "$AUTHORIZED" = "true"
+
+      - name: Run exact pinned Claude action against fork checkout
+        id: claude
+        if: steps.auth.outputs.authorized == 'true'
+        continue-on-error: true
+        uses: luccabb/claude-code-action@7f39722b8a782471258f32e1d5a9a531b2b68056
+        with:
+          # The target exchanges OIDC for an App token. The lab supplies the
+          # job token directly so it remains self-contained and uses no real App.
+          github_token: ${{ github.token }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--model claude-opus-4-6"
+          additional_permissions: |
+            actions: read
+
+      - name: Verify controlled hash-only proof
+        if: always() && steps.auth.outputs.authorized == 'true'
+        shell: bash
+        env:
+          EXPECTED_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+          const proofPath = path.join(process.env.RUNNER_TEMP, 'gcm-mcp-proof.json');
+          const outputPath = path.join(process.env.RUNNER_TEMP, 'verification.json');
+          const proof = JSON.parse(fs.readFileSync(proofPath, 'utf8'));
+          const emptyHash = hash('');
+          const checks = {
+            controlled_source: proof.source === 'greyfogsec-controlled-fork-mcp',
+            canary_inherited: proof.hashes.PROBE_CANARY === hash(process.env.PROBE_CANARY),
+            anthropic_key_inherited:
+              proof.hashes.ANTHROPIC_API_KEY === hash(process.env.EXPECTED_ANTHROPIC_API_KEY),
+            github_token_present: proof.hashes.GITHUB_TOKEN !== emptyHash,
+            workflow_token_present: proof.hashes.DEFAULT_WORKFLOW_TOKEN !== emptyHash,
+            github_and_workflow_tokens_match:
+              proof.hashes.GITHUB_TOKEN === proof.hashes.DEFAULT_WORKFLOW_TOKEN,
+          };
+          const result = {
+            source: proof.source,
+            run_id: process.env.GITHUB_RUN_ID,
+            pull_request: process.env.GITHUB_REF,
+            checks,
+            passed: Object.values(checks).every(Boolean),
+          };
+          fs.writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`);
+          console.log(JSON.stringify(result, null, 2));
+          if (!result.passed) process.exit(1);
+          NODE
+
+      - name: Upload controlled proof
+        if: always() && steps.auth.outputs.authorized == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcm-mcp-controlled-proof-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/gcm-mcp-proof.json
+            ${{ runner.temp }}/verification.json
+          if-no-files-found: error
+          retention-days: 7
